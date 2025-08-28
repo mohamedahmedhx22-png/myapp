@@ -44,8 +44,31 @@ export function setupAuth(app: Express) {
       tableName: "sessions",
     });
   } else {
-    // Use memory store for development
-    sessionStore = MemoryStore(session);
+    // Use simple memory store for development
+    const sessions = new Map();
+    sessionStore = {
+      get: (sid: string, cb: Function) => {
+        const session = sessions.get(sid);
+        if (session && session.expires > Date.now()) {
+          cb(null, session.data);
+        } else {
+          if (session) sessions.delete(sid);
+          cb(null, null);
+        }
+      },
+      set: (sid: string, session: any, cb: Function) => {
+        sessions.set(sid, {
+          data: session,
+          expires: Date.now() + sessionTtl
+        });
+        cb(null);
+      },
+      destroy: (sid: string, cb: Function) => {
+        sessions.delete(sid);
+        cb(null);
+      },
+      on: () => {}, // Dummy method to satisfy express-session
+    };
   }
 
   const sessionSettings: session.SessionOptions = {
