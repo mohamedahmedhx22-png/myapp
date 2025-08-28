@@ -142,6 +142,42 @@ export const businessImages = pgTable("business_images", {
   createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
+// Enhanced phone number discovery system
+export const phoneNumberNames = pgTable("phone_number_names", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  phoneNumber: text("phone_number").notNull(),
+  name: text("name").notNull(),
+  addedByUserId: text("added_by_user_id").notNull(), // Who added this name
+  isVerified: boolean("is_verified").notNull().default(false),
+  verificationMethod: text("verification_method"), // "sms", "call", "manual"
+  verificationDate: timestamp("verification_date"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Phone number verification requests
+export const phoneVerificationRequests = pgTable("phone_verification_requests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  phoneNumber: text("phone_number").notNull(),
+  requestedByUserId: text("requested_by_user_id").notNull(),
+  verificationCode: text("verification_code").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  isUsed: boolean("is_used").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+// Business categories for better organization
+export const businessCategories = pgTable("business_categories", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull().unique(),
+  arabicName: text("arabic_name"),
+  description: text("description"),
+  icon: text("icon"), // Icon name or URL
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
   createdAt: true,
@@ -197,6 +233,22 @@ export const insertContactReportSchema = createInsertSchema(contactReports).omit
   createdAt: true,
 });
 
+export const insertPhoneNumberNameSchema = createInsertSchema(phoneNumberNames).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertPhoneVerificationRequestSchema = createInsertSchema(phoneVerificationRequests).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertBusinessCategorySchema = createInsertSchema(businessCategories).omit({
+  id: true,
+  createdAt: true,
+});
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type UpsertUser = z.infer<typeof upsertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -216,3 +268,9 @@ export type InsertPhoneContact = z.infer<typeof insertPhoneContactSchema>;
 export type PhoneContact = typeof phoneContacts.$inferSelect;
 export type InsertContactReport = z.infer<typeof insertContactReportSchema>;
 export type ContactReport = typeof contactReports.$inferSelect;
+export type InsertPhoneNumberName = z.infer<typeof insertPhoneNumberNameSchema>;
+export type PhoneNumberName = typeof phoneNumberNames.$inferSelect;
+export type InsertPhoneVerificationRequest = z.infer<typeof insertPhoneVerificationRequestSchema>;
+export type PhoneVerificationRequest = typeof phoneVerificationRequests.$inferSelect;
+export type InsertBusinessCategory = z.infer<typeof insertBusinessCategorySchema>;
+export type BusinessCategory = typeof businessCategories.$inferSelect;

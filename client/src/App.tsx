@@ -15,6 +15,8 @@ import Settings from "@/pages/settings";
 import BusinessDirectory from "@/pages/business-directory";
 import Services from "@/pages/services";
 import AddContact from "@/pages/add-contact";
+import PhoneDiscovery from "@/pages/phone-discovery";
+import Marketplace from "@/pages/marketplace";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -39,6 +41,8 @@ function Router() {
           <Route path="/business" component={BusinessDirectory} />
           <Route path="/services" component={Services} />
           <Route path="/add-contact" component={AddContact} />
+          <Route path="/phone-discovery" component={PhoneDiscovery} />
+          <Route path="/marketplace" component={Marketplace} />
         </>
       )}
       <Route component={NotFound} />

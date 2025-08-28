@@ -7,6 +7,7 @@ import { promisify } from "util";
 import { storage } from "./storage";
 import { User as SelectUser } from "@shared/schema";
 import connectPg from "connect-pg-simple";
+import MemoryStore from "memorystore";
 
 declare global {
   namespace Express {
@@ -31,16 +32,47 @@ async function comparePasswords(supplied: string, stored: string) {
 
 export function setupAuth(app: Express) {
   const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
-  const pgStore = connectPg(session);
-  const sessionStore = new pgStore({
-    conString: process.env.DATABASE_URL,
-    createTableIfMissing: false,
-    ttl: sessionTtl,
-    tableName: "sessions",
-  });
+  
+  // Use memory store for development when DATABASE_URL is not set
+  let sessionStore;
+  if (process.env.DATABASE_URL) {
+    const pgStore = connectPg(session);
+    sessionStore = new pgStore({
+      conString: process.env.DATABASE_URL,
+      createTableIfMissing: false,
+      ttl: sessionTtl,
+      tableName: "sessions",
+    });
+  } else {
+    // Use simple memory store for development
+    const sessions = new Map();
+    sessionStore = {
+      get: (sid: string, cb: Function) => {
+        const session = sessions.get(sid);
+        if (session && session.expires > Date.now()) {
+          cb(null, session.data);
+        } else {
+          if (session) sessions.delete(sid);
+          cb(null, null);
+        }
+      },
+      set: (sid: string, session: any, cb: Function) => {
+        sessions.set(sid, {
+          data: session,
+          expires: Date.now() + sessionTtl
+        });
+        cb(null);
+      },
+      destroy: (sid: string, cb: Function) => {
+        sessions.delete(sid);
+        cb(null);
+      },
+      on: () => {}, // Dummy method to satisfy express-session
+    };
+  }
 
   const sessionSettings: session.SessionOptions = {
-    secret: process.env.SESSION_SECRET!,
+    secret: process.env.SESSION_SECRET || 'dev-secret-key-change-in-production',
     resave: false,
     saveUninitialized: false,
     store: sessionStore,

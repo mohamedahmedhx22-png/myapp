@@ -1,4 +1,4 @@
-import { Home, Users, Building, Settings, Star, User } from "lucide-react";
+import { Home, Users, Building, Settings, Star, User, Search, Store } from "lucide-react";
 import { useLocation } from "wouter";
 import { Link } from "wouter";
 
@@ -10,16 +10,16 @@ export default function BottomNavigation() {
 
   const navItems = [
     { path: "/", icon: Home, label: "الرئيسية", testId: "nav-home" },
+    { path: "/phone-discovery", icon: Search, label: "كاشف الأرقام", testId: "nav-phone-discovery" },
+    { path: "/marketplace", icon: Store, label: "السوق", testId: "nav-marketplace" },
     { path: "/business", icon: Building, label: "دليل الأعمال", testId: "nav-business" },
     { path: "/contacts", icon: Users, label: "جهات الاتصال", testId: "nav-contacts" },
-    { path: "/favorites", icon: Star, label: "المفضلة", testId: "nav-favorites" },
-    // ...(currentUserId ? [{ path: `/profile/${currentUserId}`, icon: User, label: "ملفي الشخصي", testId: "nav-my-profile" }] : []),
     { path: "/settings", icon: Settings, label: "الإعدادات", testId: "nav-settings" },
   ];
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-40">
-      <div className="grid grid-cols-5">
+      <div className="grid grid-cols-6">
         {navItems.map(({ path, icon: Icon, label, testId }) => (
           <Link key={path} href={path}>
             <button
