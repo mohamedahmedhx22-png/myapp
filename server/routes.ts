@@ -765,6 +765,277 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Enhanced Phone Number Discovery System Routes
+  
+  // Add a new name for a phone number
+  app.post("/api/phone-numbers/:phoneNumber/names", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "يجب تسجيل الدخول أولاً" });
+      }
+
+      const { phoneNumber } = req.params;
+      const { name } = req.body;
+
+      if (!name) {
+        return res.status(400).json({ message: "مطلوب اسم للرقم" });
+      }
+
+      const phoneName = await storage.addPhoneNumberName({
+        phoneNumber,
+        name,
+        addedByUserId: req.user.id,
+      });
+
+      res.status(201).json(phoneName);
+    } catch (error) {
+      console.error("Add phone name error:", error);
+      res.status(500).json({ message: "خطأ في إضافة اسم الرقم" });
+    }
+  });
+
+  // Get all names for a phone number
+  app.get("/api/phone-numbers/:phoneNumber/names", async (req, res) => {
+    try {
+      const { phoneNumber } = req.params;
+      const names = await storage.getPhoneNumberNames(phoneNumber);
+      
+      // Get user details for each name
+      const namesWithUsers = await Promise.all(
+        names.map(async (name) => {
+          const user = await storage.getUser(name.addedByUserId);
+          return {
+            ...name,
+            addedByUser: {
+              id: user?.id,
+              name: user?.name || "غير معروف",
+              city: user?.city,
+              country: user?.country,
+              region: user?.region,
+            }
+          };
+        })
+      );
+
+      res.json(namesWithUsers);
+    } catch (error) {
+      console.error("Get phone names error:", error);
+      res.status(500).json({ message: "خطأ في جلب أسماء الرقم" });
+    }
+  });
+
+  // Search phone numbers by name
+  app.get("/api/phone-numbers/search", async (req, res) => {
+    try {
+      const { name } = req.query;
+      
+      if (!name) {
+        return res.status(400).json({ message: "مطلوب اسم للبحث" });
+      }
+
+      const results = await storage.searchPhoneNumbersByName(name as string);
+      
+      // Get user details for each result
+      const resultsWithUsers = await Promise.all(
+        results.map(async (result) => {
+          const user = await storage.getUser(result.addedByUserId);
+          return {
+            ...result,
+            addedByUser: {
+              id: user?.id,
+              name: user?.name || "غير معروف",
+              city: user?.city,
+              country: user?.country,
+              region: user?.region,
+            }
+          };
+        })
+      );
+
+      res.json(resultsWithUsers);
+    } catch (error) {
+      console.error("Search phone numbers error:", error);
+      res.status(500).json({ message: "خطأ في البحث عن الأرقام" });
+    }
+  });
+
+  // Verify a phone number name
+  app.post("/api/phone-numbers/names/:id/verify", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "يجب تسجيل الدخول أولاً" });
+      }
+
+      const { id } = req.params;
+      const { verificationMethod } = req.body;
+
+      if (!verificationMethod) {
+        return res.status(400).json({ message: "مطلوب طريقة التحقق" });
+      }
+
+      const verifiedName = await storage.verifyPhoneNumberName(id, verificationMethod);
+      
+      if (!verifiedName) {
+        return res.status(404).json({ message: "اسم الرقم غير موجود" });
+      }
+
+      res.json(verifiedName);
+    } catch (error) {
+      console.error("Verify phone name error:", error);
+      res.status(500).json({ message: "خطأ في التحقق من اسم الرقم" });
+    }
+  });
+
+  // Create phone verification request
+  app.post("/api/phone-numbers/verify", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "يجب تسجيل الدخول أولاً" });
+      }
+
+      const { phoneNumber } = req.body;
+
+      if (!phoneNumber) {
+        return res.status(400).json({ message: "مطلوب رقم الهاتف" });
+      }
+
+      // Generate verification code (6 digits)
+      const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+      const verificationRequest = await storage.createVerificationRequest({
+        phoneNumber,
+        requestedByUserId: req.user.id,
+        verificationCode,
+        expiresAt,
+      });
+
+      // TODO: Send SMS with verification code
+      // For now, return the code in response (in production, send via SMS)
+      res.status(201).json({
+        message: "تم إرسال رمز التحقق",
+        verificationCode, // Remove this in production
+        expiresAt
+      });
+    } catch (error) {
+      console.error("Create verification request error:", error);
+      res.status(500).json({ message: "خطأ في إنشاء طلب التحقق" });
+    }
+  });
+
+  // Verify phone number with code
+  app.post("/api/phone-numbers/verify-code", async (req, res) => {
+    try {
+      const { phoneNumber, code } = req.body;
+
+      if (!phoneNumber || !code) {
+        return res.status(400).json({ message: "مطلوب رقم الهاتف ورمز التحقق" });
+      }
+
+      const isValid = await storage.verifyPhoneNumber(phoneNumber, code);
+      
+      if (!isValid) {
+        return res.status(400).json({ message: "رمز التحقق غير صحيح أو منتهي الصلاحية" });
+      }
+
+      res.json({ message: "تم التحقق من الرقم بنجاح" });
+    } catch (error) {
+      console.error("Verify phone number error:", error);
+      res.status(500).json({ message: "خطأ في التحقق من الرقم" });
+    }
+  });
+
+  // Business Categories Routes
+  
+  // Get all business categories
+  app.get("/api/business-categories", async (req, res) => {
+    try {
+      const categories = await storage.getAllBusinessCategories();
+      res.json(categories);
+    } catch (error) {
+      console.error("Get business categories error:", error);
+      res.status(500).json({ message: "خطأ في جلب فئات الأعمال" });
+    }
+  });
+
+  // Get business category by ID
+  app.get("/api/business-categories/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const category = await storage.getBusinessCategory(id);
+      
+      if (!category) {
+        return res.status(404).json({ message: "فئة الأعمال غير موجودة" });
+      }
+
+      res.json(category);
+    } catch (error) {
+      console.error("Get business category error:", error);
+      res.status(500).json({ message: "خطأ في جلب فئة الأعمال" });
+    }
+  });
+
+  // Enhanced search with categories
+  app.get("/api/search/services", async (req, res) => {
+    try {
+      const { query, categoryId, isActive } = req.query;
+      
+      if (!query) {
+        return res.status(400).json({ message: "مطلوب استعلام للبحث" });
+      }
+
+      const filters: ServiceProductFilters = {};
+      if (isActive !== undefined) filters.isActive = isActive === 'true';
+
+      const services = await storage.searchServicesWithCategory(
+        query as string, 
+        categoryId as string, 
+        filters
+      );
+
+      res.json(services);
+    } catch (error) {
+      console.error("Search services error:", error);
+      res.status(500).json({ message: "خطأ في البحث عن الخدمات" });
+    }
+  });
+
+  app.get("/api/search/products", async (req, res) => {
+    try {
+      const { query, categoryId, isActive } = req.query;
+      
+      if (!query) {
+        return res.status(400).json({ message: "مطلوب استعلام للبحث" });
+      }
+
+      const filters: ServiceProductFilters = {};
+      if (isActive !== undefined) filters.isActive = isActive === 'true';
+
+      const products = await storage.searchProductsWithCategory(
+        query as string, 
+        categoryId as string, 
+        filters
+      );
+
+      res.json(products);
+    } catch (error) {
+      console.error("Search products error:", error);
+      res.status(500).json({ message: "خطأ في البحث عن المنتجات" });
+    }
+  });
+
+  // Get business services and products
+  app.get("/api/businesses/:businessId/services-products", async (req, res) => {
+    try {
+      const { businessId } = req.params;
+      const result = await storage.getBusinessServicesAndProducts(businessId);
+      res.json(result);
+    } catch (error) {
+      console.error("Get business services and products error:", error);
+      res.status(500).json({ message: "خطأ في جلب خدمات ومنتجات العمل" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

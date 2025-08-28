@@ -1,6 +1,6 @@
-import { type User, type InsertUser, type UpsertUser, type SearchHistory, type InsertSearchHistory, type Review, type InsertReview, type Service, type InsertService, type Product, type InsertProduct, type PhoneContact, type InsertPhoneContact, type ContactReport, type InsertContactReport } from "@shared/schema";
+import { type User, type InsertUser, type UpsertUser, type SearchHistory, type InsertSearchHistory, type Review, type InsertReview, type Service, type InsertService, type Product, type InsertProduct, type PhoneContact, type InsertPhoneContact, type ContactReport, type InsertContactReport, type PhoneNumberName, type InsertPhoneNumberName, type PhoneVerificationRequest, type InsertPhoneVerificationRequest, type BusinessCategory, type InsertBusinessCategory } from "@shared/schema";
 import { db } from "./db";
-import { users, searchHistory, reviews, services, products, phoneContacts, contactReports } from "@shared/schema";
+import { users, searchHistory, reviews, services, products, phoneContacts, contactReports, phoneNumberNames, phoneVerificationRequests, businessCategories } from "@shared/schema";
 import { eq, like, and, or, desc, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
@@ -749,6 +749,140 @@ export class DbStorage implements IStorage {
     return await db.select().from(contactReports)
       .where(eq(contactReports.phoneContactId, phoneContactId))
       .orderBy(desc(contactReports.createdAt));
+  }
+
+  // Enhanced Phone Number Discovery System
+  async addPhoneNumberName(nameData: InsertPhoneNumberName): Promise<PhoneNumberName> {
+    const result = await db.insert(phoneNumberNames).values({
+      ...nameData,
+      id: randomUUID(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }).returning();
+    return result[0];
+  }
+
+  async getPhoneNumberNames(phoneNumber: string): Promise<PhoneNumberName[]> {
+    return await db.select().from(phoneNumberNames)
+      .where(eq(phoneNumberNames.phoneNumber, phoneNumber))
+      .where(eq(phoneNumberNames.isActive, true))
+      .orderBy(desc(phoneNumberNames.isVerified), desc(phoneNumberNames.createdAt));
+  }
+
+  async searchPhoneNumbersByName(name: string): Promise<PhoneNumberName[]> {
+    return await db.select().from(phoneNumberNames)
+      .where(like(phoneNumberNames.name, `%${name}%`))
+      .where(eq(phoneNumberNames.isActive, true))
+      .orderBy(desc(phoneNumberNames.isVerified), desc(phoneNumberNames.createdAt));
+  }
+
+  async verifyPhoneNumberName(id: string, verificationMethod: string): Promise<PhoneNumberName | undefined> {
+    const result = await db.update(phoneNumberNames)
+      .set({ 
+        isVerified: true,
+        verificationMethod,
+        verificationDate: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(phoneNumberNames.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async createVerificationRequest(request: InsertPhoneVerificationRequest): Promise<PhoneVerificationRequest> {
+    const result = await db.insert(phoneVerificationRequests).values({
+      ...request,
+      id: randomUUID(),
+      createdAt: new Date(),
+    }).returning();
+    return result[0];
+  }
+
+  async verifyPhoneNumber(phoneNumber: string, code: string): Promise<boolean> {
+    const request = await db.select().from(phoneVerificationRequests)
+      .where(and(
+        eq(phoneVerificationRequests.phoneNumber, phoneNumber),
+        eq(phoneVerificationRequests.verificationCode, code),
+        eq(phoneVerificationRequests.isUsed, false),
+        sql`${phoneVerificationRequests.expiresAt} > NOW()`
+      ))
+      .limit(1);
+
+    if (request.length === 0) return false;
+
+    // Mark as used
+    await db.update(phoneVerificationRequests)
+      .set({ isUsed: true })
+      .where(eq(phoneVerificationRequests.id, request[0].id));
+
+    return true;
+  }
+
+  // Business Categories
+  async getAllBusinessCategories(): Promise<BusinessCategory[]> {
+    return await db.select().from(businessCategories)
+      .where(eq(businessCategories.isActive, true))
+      .orderBy(businessCategories.name);
+  }
+
+  async getBusinessCategory(id: string): Promise<BusinessCategory | undefined> {
+    const result = await db.select().from(businessCategories)
+      .where(eq(businessCategories.id, id))
+      .limit(1);
+    return result[0];
+  }
+
+  // Enhanced search with business categories
+  async searchServicesWithCategory(query: string, categoryId?: string, filters?: ServiceProductFilters): Promise<Service[]> {
+    let whereConditions = [like(services.title, `%${query}%`)];
+    
+    if (categoryId) {
+      whereConditions.push(eq(services.category, categoryId));
+    }
+    
+    if (filters?.isActive !== undefined) {
+      whereConditions.push(eq(services.isActive, filters.isActive));
+    }
+
+    return await db.select().from(services)
+      .where(and(...whereConditions))
+      .orderBy(desc(services.isFeatured), desc(services.createdAt));
+  }
+
+  async searchProductsWithCategory(query: string, categoryId?: string, filters?: ServiceProductFilters): Promise<Product[]> {
+    let whereConditions = [like(products.name, `%${query}%`)];
+    
+    if (categoryId) {
+      whereConditions.push(eq(products.category, categoryId));
+    }
+    
+    if (filters?.isActive !== undefined) {
+      whereConditions.push(eq(products.isActive, filters.isActive));
+    }
+
+    return await db.select().from(products)
+      .where(and(...whereConditions))
+      .orderBy(desc(products.isFeatured), desc(products.createdAt));
+  }
+
+  // Get services and products by business with enhanced info
+  async getBusinessServicesAndProducts(businessId: string): Promise<{
+    services: Service[];
+    products: Product[];
+    totalServices: number;
+    totalProducts: number;
+  }> {
+    const [services, products] = await Promise.all([
+      db.select().from(services).where(eq(services.businessId, businessId)),
+      db.select().from(products).where(eq(products.businessId, businessId))
+    ]);
+
+    return {
+      services,
+      products,
+      totalServices: services.length,
+      totalProducts: products.length,
+    };
   }
 }
 

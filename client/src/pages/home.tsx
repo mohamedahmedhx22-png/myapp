@@ -162,6 +162,29 @@ export default function Home() {
                 </div>
                 <span className="text-sm font-medium text-gray-700">إضافة جهة اتصال</span>
               </button>
+              
+              <button
+                className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col items-center space-y-2 hover:shadow-md transition-shadow touch-target"
+                onClick={() => setLocation("/phone-discovery")}
+                data-testid="button-phone-discovery"
+              >
+                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                  <IdCard className="text-blue-600 w-6 h-6" />
+                </div>
+                <span className="text-sm font-medium text-gray-700">كاشف الأرقام</span>
+              </button>
+              
+              <button
+                className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col items-center space-y-2 hover:shadow-md transition-shadow touch-target"
+                onClick={() => setLocation("/marketplace")}
+                data-testid="button-marketplace"
+              >
+                <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
+                  <User className="text-purple-600 w-6 h-6" />
+                </div>
+                <span className="text-sm font-medium text-gray-700">السوق الإلكتروني</span>
+              </button>
+              
               <button
                 className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col items-center space-y-2 hover:shadow-md transition-shadow touch-target"
                 onClick={handleLogout}
